@@ -1,11 +1,13 @@
 from typing import Annotated
 from fastapi import APIRouter, HTTPException, Header
 from jose import JWTError, jwt
-from DB.fakeDB import shopping_carts_db
 from Models.ShoppingCart import ShoppingCart
+from DB.fakeDB import get_ddb_instance
+from Models.DynamoModel import DynamoModel
 
 router = APIRouter()
 
+ddb = get_ddb_instance()
 # POST /v1/orders : Create an empty shopping cart for the user
 @router.post("/v1/orders", response_model=ShoppingCart)
 async def create_shopping_cart(auth_token: Annotated[str, Header()]):
@@ -16,9 +18,15 @@ async def create_shopping_cart(auth_token: Annotated[str, Header()]):
             raise HTTPException(status_code=400, detail="The provided token does not have user id, please try logging in again.")
     except JWTError:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
-    if user_id in shopping_carts_db:
-        raise HTTPException(status_code=400, detail="Shopping cart already exists for this user")
+    
+    existing_item = ddb.get_item(TableName="e-commerce", Key={"cart_id": {"S": user_id}})
+    if existing_item.get("Item"):
+        raise HTTPException(status_code=400, detail="Shopping cart already exists for the user")
+
     shopping_cart = ShoppingCart(cart_id=user_id)
-    shopping_carts_db[user_id] = shopping_cart
+    item = DynamoModel().model_to_dynamodb(shopping_cart)
+    ddb.put_item(TableName="e-commerce", Item=item)   
+    
+
     return shopping_cart
    
