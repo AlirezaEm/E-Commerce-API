@@ -30,3 +30,15 @@ async def create_shopping_cart(auth_token: Annotated[str, Header()]):
 
     return shopping_cart
    
+# DELETE /v1/orders/uuid
+@router.delete("/v1/orders/{uuid}", response_model=ShoppingCart)
+def delete_shopping_cart(uuid: str):
+    existing_item = ddb.get_item(TableName="e-commerce", Key={"cart_id": {"S": uuid}})
+    
+    if not existing_item.get("Item"):
+        raise HTTPException(status_code=404, detail="Shopping cart was not found for this user")
+    
+    ddb.delete_item(TableName="e-commerce", Key={"cart_id": {"S": uuid}})
+    item = ShoppingCart.from_dynamodb_item(existing_item)
+    
+    return item
