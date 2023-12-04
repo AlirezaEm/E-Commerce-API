@@ -18,23 +18,33 @@ async def create_shopping_cart(auth_token: Annotated[str, Header()]):
     except JWTError:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
     
-    existing_item = ddb.get_item(Key={"cart_id": user_id})
+    try:
+        existing_item = ddb.get_item(Key={"cart_id": user_id})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
     if existing_item.get("Item"):
         raise HTTPException(status_code=400, detail="Shopping cart already exists for the user")
 
     shopping_cart = ShoppingCart(cart_id=user_id)
-    ddb.put_item(Item=shopping_cart.dict())   
+
+    try:
+        ddb.put_item(Item=shopping_cart.dict())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     
     return shopping_cart
    
 # DELETE /v1/orders/uuid
-@router.delete("/v1/orders/{uuid}", response_model=ShoppingCart)
+@router.delete("/v1/orders/{uuid}")
 def delete_shopping_cart(uuid: str):
     existing_item = ddb.get_item(Key={"cart_id": uuid})
     
     if not existing_item.get("Item"):
         raise HTTPException(status_code=404, detail="Shopping cart was not found for this user")
     
-    ddb.delete_item(Key={"cart_id": uuid})
-    deleted_item = ShoppingCart(**existing_item.get('Item'))
-    return deleted_item
+    try:
+        ddb.delete_item(Key={"cart_id": uuid})
+    except Exception as e: 
+        raise HTTPException(status_code=500, detail=str(e))
+    return None    
