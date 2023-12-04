@@ -12,8 +12,7 @@ class Config:
     DB_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 
 def get_ddb_instance():
-    return boto3.client('dynamodb',
+    return boto3.resource('dynamodb',
                           region_name=Config.DB_REGION_NAME,
                           aws_access_key_id=Config.DB_ACCESS_KEY_ID,
-                          aws_secret_access_key=Config.DB_SECRET_ACCESS_KEY)
-
+                          aws_secret_access_key=Config.DB_SECRET_ACCESS_KEY).Table('e-commerce')
