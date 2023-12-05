@@ -5,8 +5,8 @@ from Models.ShoppingCart import ShoppingCart
 from DB.fakeDB import get_ddb_instance
 
 router = APIRouter()
-
 ddb = get_ddb_instance()
+
 # POST /v1/orders : Create an empty shopping cart for the user
 @router.post("/v1/orders", response_model=ShoppingCart)
 async def create_shopping_cart(auth_token: Annotated[str, Header()]):
@@ -48,3 +48,42 @@ def delete_shopping_cart(uuid: str):
     except Exception as e: 
         raise HTTPException(status_code=500, detail=str(e))
     return None    
+
+# POST /v1/orders/uuid/checkout : Checkout an entire shopping cart that changes the state to PAID and freezes it to go through shipment
+@router.post("/v1/orders/{uuid}/checkout")
+def checkout_shopping_cart(uuid: str, auth_token: Annotated[str, Header()]):
+    try:
+        payload = jwt.decode(auth_token, "secret", algorithms="HS256")
+        user_id: str = payload.get("user_id")
+        if user_id is None:
+            raise HTTPException(status_code=400, detail="The provided token does not have user id, please try logging in again.")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+    
+    if uuid != user_id:
+        raise HTTPException(status_code=403, detail="You don't have the permission.")
+    
+    try:
+        existing_item = ddb.get_item(Key={"cart_id": uuid})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+        
+    if not existing_item.get("Item"):
+        raise HTTPException(status_code=404, detail="Shopping cart was not found for this user")
+    
+    if existing_item.get("Item").get("state") == "PAID":
+        raise HTTPException(status_code=400, detail="Shopping cart is already checked out")
+
+    # Additional logic for processing payment, billing, and freezing the cart for shipment can be added here.
+
+    try:
+        updated_item = ddb.update_item(Key={"cart_id": uuid},
+                                        UpdateExpression="SET #state = :new_state",
+                                        ExpressionAttributeNames={'#state': 'state'},
+                                        ExpressionAttributeValues={':new_state': 'PAID'},
+                                        ReturnValues='ALL_NEW'
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    return updated_item.get("Attributes")
