@@ -1,6 +1,7 @@
 from typing import Annotated
 from fastapi import APIRouter, HTTPException, Header
 from jose import JWTError, jwt
+from Models.Item import Item
 from Models.ShoppingCart import ShoppingCart
 from DB.fakeDB import get_ddb_instance
 import uuid
@@ -64,6 +65,9 @@ def checkout_shopping_cart(uuid: str, auth_token: Annotated[str, Header()]):
     except JWTError:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
         
+# PATCH /v1/orders/uuid : Add/remove an item to/from the cart
+@router.patch("/v1/orders/{uuid}")
+def update_shopping_cart(uuid: str, items: list[Item]):
     try:
         existing_item = ddb.get_item(Key={"cart_id": uuid})
     except Exception as e:
