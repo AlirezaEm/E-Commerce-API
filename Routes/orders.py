@@ -56,13 +56,11 @@ def checkout_shopping_cart(uuid: str, auth_token: Annotated[str, Header()]):
         payload = jwt.decode(auth_token, "secret", algorithms="HS256")
         user_id: str = payload.get("user_id")
         if user_id is None:
-            raise HTTPException(status_code=400, detail="The provided token does not have user id, please try logging in again.")
+            raise HTTPException(status_code=401, detail="The provided token does not have user id, please try logging in again.")
     except JWTError:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
     
-    if uuid != user_id:
-        raise HTTPException(status_code=403, detail="You don't have the permission.")
-    
+        
     try:
         existing_item = ddb.get_item(Key={"cart_id": uuid})
     except Exception as e:
