@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Header
 from jose import JWTError, jwt
 from Models.ShoppingCart import ShoppingCart
 from DB.fakeDB import get_ddb_instance
+import uuid
 
 router = APIRouter()
 ddb = get_ddb_instance()
@@ -17,16 +18,8 @@ async def create_shopping_cart(auth_token: Annotated[str, Header()]):
             raise HTTPException(status_code=400, detail="The provided token does not have user id, please try logging in again.")
     except JWTError:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
-    
-    try:
-        existing_item = ddb.get_item(Key={"cart_id": user_id})
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-    if existing_item.get("Item"):
-        raise HTTPException(status_code=400, detail="Shopping cart already exists for the user")
 
-    shopping_cart = ShoppingCart(cart_id=user_id)
+    shopping_cart = ShoppingCart(cart_id=str(uuid.uuid4()), owner_id=user_id)
 
     try:
         ddb.put_item(Item=shopping_cart.dict())

@@ -4,5 +4,6 @@ from Models.Item import Item
 
 class ShoppingCart(BaseModel):
     cart_id: str
+    owner_id: str
     items: List[Item] = []
     state: str = "open"
