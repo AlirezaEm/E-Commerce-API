@@ -63,7 +63,6 @@ def checkout_shopping_cart(uuid: str, auth_token: Annotated[str, Header()]):
             raise HTTPException(status_code=401, detail="The provided token does not have user id, please try logging in again.")
     except JWTError:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
-    
         
     try:
         existing_item = ddb.get_item(Key={"cart_id": uuid})
@@ -72,6 +71,9 @@ def checkout_shopping_cart(uuid: str, auth_token: Annotated[str, Header()]):
         
     if not existing_item.get("Item"):
         raise HTTPException(status_code=404, detail="Shopping cart was not found for this user")
+    
+    if existing_item.get("Item").get("owner_id") != user_id:
+        raise HTTPException(status_code=403, detail="You are not authorized to checkout this shopping cart")
     
     if existing_item.get("Item").get("state") == "PAID":
         raise HTTPException(status_code=400, detail="Shopping cart is already checked out")
