@@ -5,6 +5,7 @@ from Models.Item import Item
 from Models.ShoppingCart import ShoppingCart
 from DB.fakeDB import get_ddb_instance
 import uuid
+from boto3.dynamodb.conditions import Attr
 
 router = APIRouter()
 ddb = get_ddb_instance()
@@ -129,3 +130,64 @@ def update_shopping_cart(uuid: str, items: list[Item], auth_token: Annotated[str
         raise HTTPException(status_code=500, detail=str(e))
     
     return updated_item.get("Attributes")
+
+# Endpoint to get orders based on user and/or state
+@router.get("/v1/orders")
+def get_orders_by_user_and_state(auth_token: Annotated[str, Header()], state: str | None = None, user: str | None = None):
+
+    # GET /v1/orders?user=uuid&state=SHIPPED|PAID|etc Get all shipped orders for a user by state
+    if user and state:
+        try:
+            payload = jwt.decode(auth_token, "secret", algorithms="HS256")
+            user_id: str = payload.get("user_id")
+            if user_id is None:
+                raise HTTPException(status_code=401, detail="The provided token does not have user id, please try logging in again.")
+            if user_id != user:
+                raise HTTPException(status_code=403, detail="You are not authorized to access this resource")
+        except JWTError:
+            raise HTTPException(status_code=401, detail="Could not validate credentials")
+        
+        try:
+            filtered_orders = ddb.scan(FilterExpression=Attr('owner_id').eq(user) & Attr('state').eq(state)).get("Items")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # GET /v1/orders?user=uuid  Get all orders of a user
+    elif user:
+        try:
+            payload = jwt.decode(auth_token, "secret", algorithms="HS256")
+            user_id: str = payload.get("user_id")
+            if user_id is None:
+                raise HTTPException(status_code=401, detail="The provided token does not have user id, please try logging in again.")
+            if user_id != user:
+                raise HTTPException(status_code=403, detail="You are not authorized to access this resource")
+        except JWTError:
+            raise HTTPException(status_code=401, detail="Could not validate credentials")
+        
+        try:
+            filtered_orders = ddb.scan(FilterExpression=Attr('owner_id').eq(user)).get("Items")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+        
+    #GET /v1/orders?state=PAID  Get all “Paid” orders for ALL users
+    elif state:
+        try:
+            payload = jwt.decode(auth_token, "secret", algorithms="HS256")
+            isAdmin: bool = payload.get("isAdmin")
+            if not isAdmin:
+                raise HTTPException(status_code=403, detail="You are not authorized to access this resource")
+        except JWTError:
+            raise HTTPException(status_code=401, detail="Could not validate credentials")
+        
+        try:
+            filtered_orders = ddb.scan(FilterExpression=Attr('state').eq(state)).get("Items")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    else:
+        raise HTTPException(status_code=400, detail="Specify at least user_id or state")
+
+    if not filtered_orders:
+        raise HTTPException(status_code=404, detail="No orders found based on the specified criteria")
+    
+    return filtered_orders
