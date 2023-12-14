@@ -1,0 +1,31 @@
+service: e-commerce-handler
+provider:
+  name: aws
+  runtime: python3.11
+  stage: dev
+  region: ap-southeast-2
+  endpointType: REGIONAL
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource:
+        - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/e-commerce
+plugins:
+  - serverless-python-requirements
+
+functions:
+  app:
+    handler: main.handler
+    events:
+      - http:
+          method: any
+          path: /{proxy+}
+      - http:
+          method: any
+          path: /

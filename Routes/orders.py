@@ -165,7 +165,7 @@ def get_orders_by_user_and_state(auth_token: Annotated[str, Header()], state: st
             raise HTTPException(status_code=401, detail="Could not validate credentials")
         
         try:
-            filtered_orders = ddb.query(Indexname='owner_id-state-index', KeyConditionExpression=Key('owner_id').eq(user)).get("Items")
+            filtered_orders = ddb.query(IndexName='owner_id-state-index', KeyConditionExpression=Key('owner_id').eq(user)).get("Items")
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
         
