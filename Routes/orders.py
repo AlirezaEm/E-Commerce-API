@@ -4,12 +4,14 @@ from fastapi import APIRouter, HTTPException, Header, status, Depends
 from jose import JWTError, jwt
 from Models.Item import Item
 from Models.ShoppingCart import ShoppingCart
-from DB.DB import get_ddb_instance
 import uuid
 from boto3.dynamodb.conditions import Key
+import boto3
+from dotenv import load_dotenv
 
+load_dotenv()
 router = APIRouter()
-ddb = get_ddb_instance()
+ddb = boto3.resource('dynamodb').Table('e-commerce')
 
 # Dependency for getting the current user
 def get_current_user(auth_token: Annotated[str, Header()]) -> (str, bool):
@@ -129,7 +131,7 @@ def get_orders_by_user_and_state(userToken: tuple = Depends(get_current_user), s
 
     #GET /v1/orders?user=uuid&state=SHIPPED|PAID|etc  Get all shipped orders for a user by state
     if user and state:
-        if user_id != user and isAdmin is None:
+        if user_id != user and not isAdmin:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You are not authorized to access this resource")
         try:
             filtered_orders = ddb.query(
@@ -141,7 +143,7 @@ def get_orders_by_user_and_state(userToken: tuple = Depends(get_current_user), s
 
     # GET /v1/orders?user=uuid  Get all orders of a user
     elif user:
-        if user_id != user and isAdmin is None:
+        if user_id != user and not isAdmin:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You are not authorized to access this resource")
         try:
             filtered_orders = ddb.query(

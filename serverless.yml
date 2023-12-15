@@ -16,6 +16,9 @@ provider:
         - dynamodb:DeleteItem
       Resource:
         - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/e-commerce
+        - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/e-commerce/index/owner_id-state-index
+        - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/e-commerce/index/state-index
+
 plugins:
   - serverless-python-requirements
 
