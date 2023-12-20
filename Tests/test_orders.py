@@ -179,6 +179,82 @@ def test_delete_shopping_cart_DB_error(mock_env):
     assert response.status_code == 500
 
 #-----------------------------------------------------------------------------------------------------------------------------
+# Checkout an entire shopping cart that changes the state to PAID: (POST /v1/orders/uuid/checkout)
+@mock_dynamodb
+def test_checkout_shopping_cart_valid(mock_env):
+    ddb = dynamodb_setup()
+    ddb.put_item(Item={'cart_id': 'CartID100', 'owner_id': 'OwnerID100', 'state': 'OPEN'})
+    response = client.post("/v1/orders/CartID100/checkout", headers={"Auth-Token": generate_token('OwnerID100')})
+    assert response.status_code == 200
+    data = response.json()
+    assert data['state'] == "PAID"
+
+@mock_dynamodb
+def test_checkout_shopping_cart_not_found(mock_env):
+    dynamodb_setup()
+    response = client.post("/v1/orders/CartID100/checkout", headers={"Auth-Token": generate_token('OwnerID100')})
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Shopping cart not found"}
+
+@mock_dynamodb
+def test_checkout_shopping_cart_not_authorized(mock_env):
+    ddb = dynamodb_setup()
+    ddb.put_item(Item={'cart_id': 'CartID100', 'owner_id': 'OwnerID100', 'state': 'OPEN'})
+    response = client.post("/v1/orders/CartID100/checkout", headers={"Auth-Token": generate_token('OwnerID200')})
+    assert response.status_code == 401
+    assert response.json() == {"detail": "You are not authorized to checkout this shopping cart"}
+
+@mock_dynamodb
+def test_checkout_shopping_cart_already_paid(mock_env):
+    ddb = dynamodb_setup()
+    ddb.put_item(Item={'cart_id': 'CartID100', 'owner_id': 'OwnerID100', 'state': 'PAID'})
+    response = client.post("/v1/orders/CartID100/checkout", headers={"Auth-Token": generate_token('OwnerID100')})
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Shopping cart is already checked out"}
+
+@mock_dynamodb
+def test_checkout_shopping_cart_DB_error(mock_env):
+    dynamodb_setup().delete() # delete table to simulate DB error 
+    response = client.post("/v1/orders/CartID100/checkout", headers={"Auth-Token": generate_token('OwnerID100')})
+    assert response.status_code == 500
+
+#-----------------------------------------------------------------------------------------------------------------------------
+# Add/remove an item to/from the cart: PATCH /v1/orders/uuid
+@mock_dynamodb
+def test_update_shopping_cart_valid(mock_env):
+    ddb = dynamodb_setup()
+    ddb.put_item(Item={'cart_id': 'CartID100', 'owner_id': 'OwnerID100', 'state': 'OPEN', 'items': [{'item_id': 'Old10', 'name':'Old', 'price': '1', 'quantity':'10'}]})
+    response = client.patch("/v1/orders/CartID100", headers={"Auth-Token": generate_token('OwnerID100')}, json=[{'item_id': 'item10', 'name':'tv', 'price': '12500.52', 'quantity':'80'}, {'item_id': 'item20', 'name':'tv2', 'price': '12500.52', 'quantity':'80'}])
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data['items']) == 2
+    assert data['items'][0]['item_id'] == "item10"
+    assert data['items'][1]['name'] == "tv2"
+
+@mock_dynamodb
+def test_update_shopping_cart_not_found(mock_env):
+    dynamodb_setup()
+    response = client.patch("/v1/orders/CartID100", headers={"Auth-Token": generate_token('OwnerID100')}, json=[{'item_id': 'item10', 'name':'tv', 'price': '12500.52', 'quantity':'80'}, {'item_id': 'item20', 'name':'tv2', 'price': '12500.52', 'quantity':'80'}])
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Shopping cart not found"}
+
+@mock_dynamodb
+def test_update_shopping_cart_not_authorized(mock_env):
+    ddb = dynamodb_setup()
+    Item = {'cart_id': 'CartID100', 'owner_id': 'OwnerID100', 'state': 'OPEN', 'items': [{'item_id': 'Old10', 'name':'Old', 'price': '1', 'quantity':'10'}]}
+    ddb.put_item(Item = Item)
+    response = client.patch("/v1/orders/CartID100", headers={"Auth-Token": generate_token('NotOwnerID')}, json=[{'item_id': 'item10', 'name':'tv', 'price': '12500.52', 'quantity':'80'}, {'item_id': 'item20', 'name':'tv2', 'price': '12500.52', 'quantity':'80'}])
+    assert response.status_code == 401
+    assert response.json() == {"detail": "You are not authorized to use this shopping cart"}
+    assert ddb.get_item(Key={'cart_id': 'CartID100'}).get('Item') == Item
+
+@mock_dynamodb
+def test_update_shopping_cart_DB_error(mock_env):
+    dynamodb_setup().delete() # delete table to simulate DB error 
+    response = client.patch("/v1/orders/CartID100", headers={"Auth-Token": generate_token('OwnerID100')}, json=[{'item_id': 'XXXXXX', 'name':'tv', 'price': '12500.52', 'quantity':'80'}, {'item_id': 'XXXXXX', 'name':'tv2', 'price': '12500.52', 'quantity':'80'}])
+    assert response.status_code == 500
+
+#-----------------------------------------------------------------------------------------------------------------------------
 # Get shopping cart based on valid user and/or state tests: (GET /v1/orders)
 @mock_dynamodb
 def test_get_orders_by_user_and_state_valid(mock_env):

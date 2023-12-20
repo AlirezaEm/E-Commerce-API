@@ -25,6 +25,10 @@ plugins:
 package:
   exclude:
     - Tests/**
+    - requirements-dev.txt
+    - .gitignore
+    - README.md
+    - node_modules/**
 
 functions:
   app:
