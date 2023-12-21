@@ -17,6 +17,7 @@ def generate_token(user_id, isAdmin=False, secret_key="test_secret_key"):
 @pytest.fixture
 def mock_env(monkeypatch):
     monkeypatch.setenv("JWT_SECRET", "test_secret_key")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "ap-southeast-2")
 
 def test_valid_token(mock_env):
     user_id = "123"
