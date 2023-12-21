@@ -11,7 +11,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 router = APIRouter()
-ddb = boto3.resource('dynamodb').Table('e-commerce')
+def get_db_connection():
+    ddb = boto3.resource('dynamodb').Table('e-commerce')
+    return ddb
 
 # Dependency for getting the current user
 def get_current_user(auth_token: Annotated[str, Header()]) -> (str, bool):
@@ -33,6 +35,7 @@ async def create_shopping_cart(user: tuple = Depends(get_current_user)):
     cart_id = str(uuid.uuid4())
     shopping_cart = ShoppingCart(cart_id=cart_id, owner_id=user_id)
     
+    ddb = get_db_connection()
     try:
         ddb.put_item(Item=shopping_cart.dict())
     except Exception as e:
@@ -44,6 +47,7 @@ async def create_shopping_cart(user: tuple = Depends(get_current_user)):
 @router.delete("/v1/orders/{cart_id}", response_description="Shopping cart deleted successfully")
 def delete_shopping_cart(cart_id: str, user: tuple = Depends(get_current_user)):
     user_id, isAdmin = user
+    ddb = get_db_connection()
     try:    
         existing_item = ddb.get_item(Key={"cart_id": cart_id}).get("Item")
     except Exception as e:
@@ -66,6 +70,7 @@ def delete_shopping_cart(cart_id: str, user: tuple = Depends(get_current_user)):
 @router.post("/v1/orders/{cart_id}/checkout", response_model=ShoppingCart)
 def checkout_shopping_cart(cart_id: str, user: tuple = Depends(get_current_user)):
     user_id, isAdmin = user
+    ddb = get_db_connection()
     try:
         existing_item = ddb.get_item(Key={"cart_id": cart_id}).get("Item")
     except Exception as e:
@@ -99,6 +104,7 @@ def checkout_shopping_cart(cart_id: str, user: tuple = Depends(get_current_user)
 @router.patch("/v1/orders/{cart_id}", response_model=ShoppingCart)
 def update_shopping_cart(cart_id: str, items: List[Item], user: tuple = Depends(get_current_user)):
     user_id, isAdmin = user
+    ddb = get_db_connection()
     try:
         existing_item = ddb.get_item(Key={"cart_id": cart_id}).get("Item")
     except Exception as e:
@@ -128,7 +134,7 @@ def update_shopping_cart(cart_id: str, items: List[Item], user: tuple = Depends(
 @router.get("/v1/orders")
 def get_orders_by_user_and_state(userToken: tuple = Depends(get_current_user), state: str | None = None, user: str | None = None):
     user_id, isAdmin = userToken
-
+    ddb = get_db_connection()
     #GET /v1/orders?user=uuid&state=SHIPPED|PAID|etc  Get all shipped orders for a user by state
     if user and state:
         if user_id != user and not isAdmin:
@@ -166,6 +172,6 @@ def get_orders_by_user_and_state(userToken: tuple = Depends(get_current_user), s
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Specify at least user_id or state")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Query parameter 'user' or 'state' is required.")
     
     return filtered_orders
